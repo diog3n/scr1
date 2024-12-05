@@ -102,8 +102,10 @@
 #define INTERRUPT_HANDLER j other_exception /* No interrupts should occur */
 
 #define RVTEST_CODE_BEGIN                                               \
+        .section .text.lab_scr1_message;                                \
+        MSG_MSCALL:                                                     \
+        .string "envcall\n";                                            \
         .section .text.init;                                            \
-        .org 0xC0, 0x00;                                                \
         .balign  64;                                                    \
         .weak stvec_handler;                                            \
         .weak mtvec_handler;                                            \
@@ -130,9 +132,24 @@ other_exception:                                                        \
         /* some unhandlable exception occurred */                       \
         li   a0, 0x1;                                                   \
 _report:                                                                \
+        /* note: this loop writes the message. f0000 is a magic */      \
+        /*       address used for printing */                           \
+        lui a6, 0xf0000;                                                \
+        la a7, MSG_MSCALL;                                              \
+next_iter:                                                              \
+        lb a5, 0(a7);                                                   \
+        /* The string is null-terminated, this is how we know where */  \
+        /* the end is */                                                \
+        beq a5, x0, break_from_loop;                                    \
+        sw a5, 0(a6);                                                   \
+        addi a7, a7, 1;                                                 \
+        jal x0, next_iter;                                              \
+break_from_loop:                                                        \
         j sc_exit;                                                      \
         .balign  64;                                                    \
         .globl _start;                                                  \
+        /* Special .section directive for linker */                     \
+        .section .text.start;                                           \
 _start:                                                                 \
         RISCV_MULTICORE_DISABLE;                                        \
         /*INIT_SPTBR;*/                                                 \
@@ -816,4 +833,3 @@ pass: \
 #define TEST_DATA
 
 #endif
-
